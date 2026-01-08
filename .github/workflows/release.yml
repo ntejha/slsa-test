@@ -1,0 +1,36 @@
+name: SLSA Generic Generator Test
+on: [workflow_dispatch] # This lets you start it manually
+
+jobs:
+  # Job 1: Build your software
+  build:
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Dummy Artifact
+        run: echo "Hello SLSA" > my-app.txt
+
+      - name: Generate Fingerprint (Hash)
+        id: hash
+        run: |
+          # This calculates the unique ID for your file
+          echo "hashes=$(sha256sum my-app.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+      - name: Save Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-app.txt
+          path: my-app.txt
+
+  # Job 2: Call the Notary (Generator)
+  provenance:
+    needs: [build]
+    permissions:
+      actions: read
+      id-token: write # Required for secure signing
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.build.outputs.hashes }}"
+      upload-assets: true # This puts the result in your GitHub Releases
